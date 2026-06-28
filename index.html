@@ -17956,6 +17956,7 @@ function yunToggle(text, id, startIdx){
     if(spk.idx>=spk.queue.length){ maybeClearResumeOnComplete(); yunStop(); return; }
     var first=(spk.idx===0);
     var piece=spk.queue[spk.idx++];
+    persistSpkResume();   /* 每段即时记录进度：锁屏/切换/退出等任何中断都能从此续播 */
     yunFetch(piece).then(function(url){
       if(my!==spk.token) return;
       if(spk.idx<spk.queue.length){ yunFetch(spk.queue[spk.idx]).catch(function(){}); } /* 预抓下一段，换段更顺 */
@@ -18006,6 +18007,7 @@ function spkToggleNative(text, id, startIdx){
     if(my!==spk.token) return;            // 已被新的朗读或停止取代
     if(spk.idx >= spk.queue.length){ maybeClearResumeOnComplete(); spkStop(); return; }
     var u = new SpeechSynthesisUtterance(spk.queue[spk.idx++]);
+    persistSpkResume();   /* 每段即时记录进度：任何中断都能从此续播 */
     u.lang = (voice && voice.lang) ? voice.lang : "zh-CN";
     if(voice) u.voice = voice;
     u.rate = (typeof state.spkRate==="number" ? state.spkRate : 0.94); u.pitch = 1.0;
