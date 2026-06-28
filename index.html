@@ -17787,11 +17787,14 @@ function spkPauseCurrent(){
 }
 function spkResumeCurrent(){
   if(!spk.active || !spk.paused) return;
-  spk.paused=false;
-  if(spk.mode==="native"){ try{ window.speechSynthesis.resume(); }catch(_){} }
-  else { try{ if(window.yun && yun.audio){ var p=yun.audio.play(); if(p&&p.catch) p.catch(function(){}); } }catch(_){} }
-  if(typeof spkMediaSession==="function") spkMediaSession("play");
-  if(typeof updateSpeakButtons==="function") updateSpeakButtons();
+  if(spk.mode==="native"){
+    /* 内建语音：从暂停的那一段重念（iOS 的 speechSynthesis.resume() 不稳定） */
+    nativeRunFrom(Math.max(0, spk.idx-1));
+  }else{
+    /* 云希：从「暂停的那一段」重新念起，最可靠——iOS 背景后 audio 元素常被回收，
+       单纯 play() 可能失效或从头；改以重念当前段（spk.idx-1）确保「从刚才暂停处」接续。 */
+    yunRunFrom(Math.max(0, spk.idx-1));
+  }
 }
 function persistSpkResume(){
   try{ if(spk.curId==="lesson" && state.lesson){
@@ -17945,10 +17948,17 @@ function yunToggle(text, id, startIdx){
   }
   spkStop();                 /* 先停掉任何在播的（含内建） */
   yunUnlock();               /* ← 在点击手势内解锁 iOS 音讯 */
-  var my=++spk.token;
   spk.queue=yunChunks(spkSanitize(text));
-  spk.idx=(startIdx&&startIdx>0&&startIdx<spk.queue.length)?startIdx:0;
-  spk.active=true; spk.paused=false; spk.mode="yun"; spk.curId=id||"";
+  spk.curId=id||"";
+  spk.curText=text||"";      /* 暂存全文：首段失败回退内建语音时用 */
+  yunRunFrom((startIdx&&startIdx>0&&startIdx<spk.queue.length)?startIdx:0);
+}
+/* 从 spk.queue 的指定段开始播放（重用既有队列）；初次播放与「续播」共用，
+   续播时不依赖可能已被 iOS 回收的 audio 元素，而是直接从暂停的那一段重念，最可靠。 */
+function yunRunFrom(startIdx){
+  var my=++spk.token;
+  spk.idx=(startIdx>0 && startIdx<spk.queue.length)?startIdx:0;
+  spk.active=true; spk.paused=false; spk.mode="yun";
   if(typeof spkMediaSession==="function") spkMediaSession("play");
   if(typeof updateSpeakButtons==="function") updateSpeakButtons();
   function step(){
@@ -17971,8 +17981,8 @@ function yunToggle(text, id, startIdx){
       if(first){
         /* 第一段就失败：云希不可用 → 整段改用装置内建语音，app 不中断 */
         if(typeof uiToast==="function") uiToast("云希语音暂时连不上，改用装置内建声音");
-        spk.active=false; spk.curId="";
-        spkToggleNative(text, id);
+        spk.active=false;
+        spkToggleNative(spk.curText||"", spk.curId);
       }else{
         step();  /* 中途某段失败：跳过、续念下一段 */
       }
@@ -17997,12 +18007,21 @@ function spkToggleNative(text, id, startIdx){
     return;
   }
   spkStop();
-  var my = ++spk.token;
   spk.queue = spkChunks(spkSanitize(text));
-  spk.idx = (startIdx&&startIdx>0&&startIdx<spk.queue.length)?startIdx:0;
-  spk.active = true; spk.paused=false; spk.mode="native"; spk.curId = id||"";
+  spk.curId = id||"";
+  spk.curText = text||"";
+  nativeRunFrom((startIdx&&startIdx>0&&startIdx<spk.queue.length)?startIdx:0);
+}
+/* 从 spk.queue 的指定段开始（内建语音）；初次播放与「续播」共用，
+   续播时从暂停的那一段重念，避免 iOS 上 speechSynthesis.resume() 不稳定。 */
+function nativeRunFrom(startIdx){
+  if(!spk.supported) return;
+  var my = ++spk.token;
+  spk.idx = (startIdx>0 && startIdx<spk.queue.length)?startIdx:0;
+  spk.active = true; spk.paused=false; spk.mode="native";
   if(typeof spkMediaSession==="function") spkMediaSession("play");
   var voice = spkVoice();
+  try{ window.speechSynthesis.cancel(); }catch(_){}   /* 清掉残留，避免叠音 */
   function step(){
     if(my!==spk.token) return;            // 已被新的朗读或停止取代
     if(spk.idx >= spk.queue.length){ maybeClearResumeOnComplete(); spkStop(); return; }
