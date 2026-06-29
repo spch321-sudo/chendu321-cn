@@ -17836,7 +17836,7 @@ window.spkStopReset=function(){
 /* 透过 Cloudflare Worker 代理呼叫 Azure 文字转语音，金钥由伺服器端保管、不外泄。 */
 /* 若 Worker 未设定或连不上，会自动退回装置内建语音，app 永远不会因此中断。          */
 var TTS_ENDPOINT = "https://azure-tts.spch321.workers.dev"; /* ← 改成你自己的 Worker 网址 */
-var TTS_VOICE    = "zh-CN-YunxiNeural";                     /* 云希（大陆普通话男声） */
+var TTS_VOICE    = "zh-CN-Yunxi:DragonHDLatestNeural";      /* 云希 · HD 高清（理解语意、自动带情感）；想换回标准免费版改为 "zh-CN-YunxiNeural" */
 var TTS_SIL_SENTENCE = 140;   /* 句号/问号/惊叹号停顿(ms)，跟逗号差不多短 */
 var TTS_SIL_COMMA    = 140;   /* 逗号停顿(ms) */
 var TTS_SIL_ENUM     = 260;   /* 顿号「、」停顿(ms)，标题「一、二、三」听得清楚 */
