@@ -16425,7 +16425,7 @@ function inline(text){
 function nl(s){return esc(s).replace(/\n/g,"<br>");}
 
 /* ============ STATE ============ */
-let state={view:"home",lesson:null,tab:"read",deep:{},checked:{},openUnit:null,read:{},last:null,font:0,streak:0,lastDate:null,best:0,notes:{},marks:{},reviewN:null,reviewUnit:null,s321:{},strategyId:null,xzPos:null,s920:[],s920Help:false,s920cf:{event:"",done:[]},s235:{comp:[],fam:[],team:[]},sys:[],tmk:{},tnote:{},spkResume:{},contPos:null,noteOpen:{}};
+let state={view:"home",lesson:null,tab:"read",deep:{},checked:{},openUnit:null,read:{},last:null,font:0,streak:0,lastDate:null,best:0,notes:{},marks:{},reviewN:null,reviewUnit:null,s321:{},strategyId:null,xzPos:null,s920:[],s920Help:false,s920cf:{event:"",done:[]},s235:{comp:[],fam:[],team:[]},sys:[],tmk:{},tnote:{},spkResume:{},contPos:null,noteOpen:{},ttsVoice:"xiaochen"};
 
 /* ---- 持久化（LINE/浏览器皆可；沙盒被挡时自动略过，不影响使用）---- */
 var LS_KEY="chendu321_v1";
@@ -16457,6 +16457,7 @@ function loadState(){
     if(typeof d.spkVoice==="string") state.spkVoice=d.spkVoice;
     if(typeof d.spkRate==="number") state.spkRate=d.spkRate;
     if(typeof d.ttsEngine==="string") state.ttsEngine=d.ttsEngine;
+    if(typeof d.ttsVoice==="string") state.ttsVoice=d.ttsVoice;
   }catch(e){}
 }
 function saveState(){
@@ -16464,7 +16465,7 @@ function saveState(){
     localStorage.setItem(LS_KEY,JSON.stringify({
       checked:state.checked, read:state.read, last:state.last,
       openUnit:state.openUnit, contPos:state.contPos, font:state.font,
-      streak:state.streak, lastDate:state.lastDate, best:state.best, notes:state.notes, marks:state.marks, s321:state.s321, xzPos:state.xzPos, s920:state.s920, s920Help:state.s920Help, s920cf:state.s920cf, s235:state.s235, sys:state.sys, tmk:state.tmk, tnote:state.tnote, spkResume:state.spkResume, spkVoice:state.spkVoice, spkRate:state.spkRate, ttsEngine:state.ttsEngine
+      streak:state.streak, lastDate:state.lastDate, best:state.best, notes:state.notes, marks:state.marks, s321:state.s321, xzPos:state.xzPos, s920:state.s920, s920Help:state.s920Help, s920cf:state.s920cf, s235:state.s235, sys:state.sys, tmk:state.tmk, tnote:state.tnote, spkResume:state.spkResume, spkVoice:state.spkVoice, spkRate:state.spkRate, ttsEngine:state.ttsEngine, ttsVoice:state.ttsVoice
     }));
   }catch(e){}
 }
@@ -17691,7 +17692,7 @@ function spkSanitize(s){
     // ───── 第一区常用字：晨读最常用的「复兴、长老」一并锁定 ─────
     ["复兴","复星"],["兴起","星起"],["兴旺","星旺"],["兴盛","星盛"],  // 兴 ㄒㄧㄥ（星）复兴兴起　非高兴ㄒㄧㄥˋ
     ["长老","掌老"],                                                  // 长 ㄓㄤˇ（掌）长老　非长久ㄔㄤˊ
-    ["今天","今添"]                                                   // 天 ㄊㄧㄢ（添）今天　修正引擎误加四声ㄊㄧㄢˋ
+    ["今天","金添"]                                                  // 今 ㄐㄧㄣ（金）+ 天 ㄊㄧㄢ（添）：连「今」一起锁定，HD 才不会误读ㄍㄣ
     // 注：原「血→写」一条已移除——大陆普通话「宝血/流血」读 xuè（文读）为标准，云帆预设即正确
   ];
   for (var _p = 0; _p < SPK_POLY.length; _p++) { s = s.split(SPK_POLY[_p][0]).join(SPK_POLY[_p][1]); }
@@ -17836,7 +17837,20 @@ window.spkStopReset=function(){
 /* 透过 Cloudflare Worker 代理呼叫 Azure 文字转语音，金钥由伺服器端保管、不外泄。 */
 /* 若 Worker 未设定或连不上，会自动退回装置内建语音，app 永远不会因此中断。          */
 var TTS_ENDPOINT = "https://azure-tts.spch321.workers.dev"; /* ← 改成你自己的 Worker 网址 */
-var TTS_VOICE    = "zh-CN-Yunfan:DragonHDLatestNeural";      /* 云帆 · HD 高清男声；中文 HD 仅 云帆(男)/晓辰(女)。想换回标准免费版改为 "zh-CN-YunxiNeural" */
+var TTS_VOICE    = "zh-CN-Yunfan:DragonHDLatestNeural";      /* 预设语音；实际使用以 ttsVoiceName() 为准（使用者可在面板自选） */
+/* 可选声音：使用者在「朗读声音」面板自行切换；HD（含冒号）走精简 SSML，标准走注音+停顿（Worker 自动判别） */
+var TTS_VOICES = {
+  yunfan:   { name:"zh-CN-Yunfan:DragonHDLatestNeural",   label:"云帆", desc:"高清男声 HD" },
+  xiaochen: { name:"zh-CN-Xiaochen:DragonHDLatestNeural", label:"晓辰", desc:"高清女声 HD" },
+  yunjhe:   { name:"zh-TW-YunJheNeural",                  label:"云哲", desc:"台湾国语男声" }
+};
+function ttsVoiceName(){
+  /* 小智固定用云帆（与课文声音无关）；课文用使用者所选 */
+  if(spk && spk.curId && spk.curId.indexOf("msg")===0) return XZ_VOICE;
+  var k=state.ttsVoice;
+  return (TTS_VOICES[k] && TTS_VOICES[k].name) || "zh-CN-Xiaochen:DragonHDLatestNeural";
+}
+var XZ_VOICE = "zh-CN-Yunfan:DragonHDLatestNeural";   /* 小智 AI 固定声音（简体版＝云帆男声） */
 var TTS_SIL_SENTENCE = 140;   /* 句号/问号/惊叹号停顿(ms)，跟逗号差不多短 */
 var TTS_SIL_COMMA    = 140;   /* 逗号停顿(ms) */
 var TTS_SIL_ENUM     = 260;   /* 顿号「、」停顿(ms)，标题「一、二、三」听得清楚 */
@@ -17913,7 +17927,7 @@ function ttsNetFetch(piece,key){
   return fetch(TTS_ENDPOINT,{
     method:"POST",
     headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({ voice:TTS_VOICE, rate:yunRateAttr(), sil:TTS_SIL_SENTENCE, silc:TTS_SIL_COMMA, sile:TTS_SIL_ENUM, text:piece })
+    body:JSON.stringify({ voice:ttsVoiceName(), rate:yunRateAttr(), sil:TTS_SIL_SENTENCE, silc:TTS_SIL_COMMA, sile:TTS_SIL_ENUM, text:piece })
   }).then(function(res){
     if(!res.ok) throw new Error("TTS HTTP "+res.status);
     return res.blob();
@@ -17923,7 +17937,7 @@ function ttsNetFetch(piece,key){
   });
 }
 function yunFetch(piece){
-  var key=TTS_VOICE+"|"+yunRateAttr()+"|"+TTS_SIL_SENTENCE+"|"+TTS_SIL_COMMA+"|"+TTS_SIL_ENUM+"|"+piece;
+  var key=ttsVoiceName()+"|"+yunRateAttr()+"|"+TTS_SIL_SENTENCE+"|"+TTS_SIL_COMMA+"|"+TTS_SIL_ENUM+"|"+piece;
   if(yun.cache[key]) return Promise.resolve(yun.cache[key]);   /* 本次工作阶段记忆体快取，最快 */
   return new Promise(function(resolve){
     ttsCacheGet(key,function(blob){
@@ -17995,6 +18009,8 @@ window.yunStop=yunStop;
 
 /* ============ 朗读派发器：优先云帆，否则内建（两者共用同一颗按钮） ============ */
 function spkToggle(text, id, startIdx){
+  /* 小智（id 以 msg 开头）固定走云端固定声音，与课文所选无关 */
+  if(id && id.indexOf("msg")===0 && yun.ready) return yunToggle(text, id, startIdx);
   if(yunEnabled()) return yunToggle(text, id, startIdx);
   return spkToggleNative(text, id, startIdx);
 }
@@ -18119,6 +18135,14 @@ window.spkPickVoice=function(name){ state.spkVoice=name||""; saveState(); render
 window.spkSetRate=function(v){ state.spkRate=Number(v)||0.94; saveState(); var lbl=document.getElementById("spk-rate-lbl"); if(lbl) lbl.textContent=(state.spkRate).toFixed(2)+"×"; };
 window.spkPreview=function(){ spkToggle("平安！这是朗读的试听。祂必兴旺，我必衰微。愿神祝福你今天的晨读。","preview"); };
 window.spkSetEngine=function(e){ state.ttsEngine=(e==="native")?"native":"yun"; saveState(); if(typeof spkStop==="function") spkStop(); renderSpkSheet(); };
+/* 选择朗读声音：azure 三种（云帆/晓辰/云哲）或装置内建 */
+window.spkSetVoice=function(choice){
+  if(choice==="native"){ state.ttsEngine="native"; }
+  else if(TTS_VOICES[choice]){ state.ttsEngine="yun"; state.ttsVoice=choice; }
+  saveState();
+  if(typeof spkStop==="function") spkStop();
+  renderSpkSheet();
+};
 function renderSpkSheet(){
   var host=document.getElementById("spk-sheet"); if(!host) return;
   var vs=spkListVoices();
@@ -18141,11 +18165,15 @@ function renderSpkSheet(){
     +'<div class="spk-card">'
       +'<div class="spk-h"><div class="spk-h-t">🔊 朗读声音</div><button class="spk-x" onclick="closeSpkSettings()">✕</button></div>'
       +'<div class="spk-sub">选一个你喜欢的声音，点下面「试听」听听看</div>'
-      +(yun.ready?('<div class="spk-eng">'
-        +'<button class="spk-eng-b '+(yunEnabled()?"on":"")+'" onclick="spkSetEngine(\'yun\')">🎙️ 云帆真人语音</button>'
-        +'<button class="spk-eng-b '+(!yunEnabled()?"on":"")+'" onclick="spkSetEngine(\'native\')">📱 装置内建</button>'
+      +(yun.ready?('<div class="spk-eng" style="flex-wrap:wrap">'
+        + Object.keys(TTS_VOICES).map(function(k){
+            var on = yunEnabled() && (state.ttsVoice||"yunfan")===k;
+            var v=TTS_VOICES[k];
+            return '<button class="spk-eng-b '+(on?"on":"")+'" style="flex:1 1 44%" onclick="spkSetVoice(\''+k+'\')">'+v.label+'<br><span style="font-size:11px;opacity:.85">'+v.desc+'</span></button>';
+          }).join("")
+        +'<button class="spk-eng-b '+(!yunEnabled()?"on":"")+'" style="flex:1 1 44%" onclick="spkSetVoice(\'native\')">📱 装置内建<br><span style="font-size:11px;opacity:.85">本机合成</span></button>'
       +'</div>'):"")
-      +(yunEnabled()?'<div class="spk-sub" style="margin-top:6px">目前使用云帆（大陆普通话男声）。下方语音清单仅在云帆连不上时作为备援。</div>':"")
+      +(yunEnabled()?('<div class="spk-sub" style="margin-top:6px">目前使用「'+((TTS_VOICES[state.ttsVoice||"yunfan"]||{}).label||"云帆")+'」。下方清单仅在真人语音连不上时作为备援。</div>'):"")
       +'<div class="spk-list">'+rows+'</div>'
       +'<div class="spk-rate"><span>语速</span><input type="range" min="0.6" max="1.3" step="0.02" value="'+rate+'" oninput="spkSetRate(this.value)"><span id="spk-rate-lbl">'+rate.toFixed(2)+'×</span></div>'
       +((yunEnabled()&&state.lesson)?('<div class="spk-dl"><button class="spk-dl-btn" id="spk-preload-btn" onclick="spkPreloadLesson()">⬇ 预先下载这一课的语音</button><div class="spk-dl-sub">下载后，这一课的云帆语音可离线聆听，之后也不再耗用网路</div></div>'):"")
