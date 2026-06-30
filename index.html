@@ -16456,6 +16456,7 @@ function loadState(){
     if(d.tnote&&typeof d.tnote==="object") state.tnote=d.tnote;
     if(typeof d.spkVoice==="string") state.spkVoice=d.spkVoice;
     if(typeof d.spkRate==="number") state.spkRate=d.spkRate;
+    if(!d.rateMig){ if(typeof state.spkRate!=="number"||state.spkRate===0.94) state.spkRate=1.0; state.rateMig=1; } else state.rateMig=d.rateMig;
     if(typeof d.ttsEngine==="string") state.ttsEngine=d.ttsEngine;
     if(typeof d.ttsVoice==="string") state.ttsVoice=d.ttsVoice;
     // 一次性：曾停在「装置内建」者，开启更新版自动回到预设晓辰（只跑一次，之后仍可自由切换）
@@ -16468,7 +16469,7 @@ function saveState(){
     localStorage.setItem(LS_KEY,JSON.stringify({
       checked:state.checked, read:state.read, last:state.last,
       openUnit:state.openUnit, contPos:state.contPos, font:state.font,
-      streak:state.streak, lastDate:state.lastDate, best:state.best, notes:state.notes, marks:state.marks, s321:state.s321, xzPos:state.xzPos, s920:state.s920, s920Help:state.s920Help, s920cf:state.s920cf, s235:state.s235, sys:state.sys, tmk:state.tmk, tnote:state.tnote, spkResume:state.spkResume, spkVoice:state.spkVoice, spkRate:state.spkRate, ttsEngine:state.ttsEngine, ttsVoice:state.ttsVoice, voiceMig:state.voiceMig
+      streak:state.streak, lastDate:state.lastDate, best:state.best, notes:state.notes, marks:state.marks, s321:state.s321, xzPos:state.xzPos, s920:state.s920, s920Help:state.s920Help, s920cf:state.s920cf, s235:state.s235, sys:state.sys, tmk:state.tmk, tnote:state.tnote, spkResume:state.spkResume, spkVoice:state.spkVoice, spkRate:state.spkRate, ttsEngine:state.ttsEngine, ttsVoice:state.ttsVoice, voiceMig:state.voiceMig, rateMig:state.rateMig
     }));
   }catch(e){}
 }
@@ -17688,6 +17689,7 @@ function spkSanitize(s){
   // ===== 朗读多音字正音表：画面文字不变，仅朗读时用「同音字」矫正云帆常读错的字 =====
   // (A) 无误伤风险者，直接替换
   var SPK_POLY = [
+    ["示拿地","示拿帝"],["迦南地","迦南帝"],  // 地名+地 读ㄉㄧˋ（帝）非轻声ㄉㄜ˙
     ["得享",   "德享"],     // 得 ㄉㄜˊ（德）　非轻声ㄉㄜ˙
     ["使徒行传","使徒行撰"], // 传 ㄓㄨㄢˋ（撰）　非ㄔㄨㄢˊ
     ["省察",   "醒察"],     // 省 ㄒㄧㄥˇ（醒）　非ㄕㄥˇ
@@ -17908,7 +17910,7 @@ function yunUnlock(){
   }catch(_){}
 }
 function yunRateAttr(){
-  var r=(typeof state.spkRate==="number"?state.spkRate:0.94);
+  var r=(typeof state.spkRate==="number"?state.spkRate:1.0);
   var pct=Math.round((r-1)*100);            /* 1.0 → +0%，0.8 → -20% */
   return (pct>=0?"+":"")+pct+"%";
 }
@@ -18070,7 +18072,7 @@ function nativeRunFrom(startIdx){
     persistSpkResume();   /* 每段即时记录进度：任何中断都能从此续播 */
     u.lang = (voice && voice.lang) ? voice.lang : "zh-CN";
     if(voice) u.voice = voice;
-    u.rate = (typeof state.spkRate==="number" ? state.spkRate : 0.94); u.pitch = 1.0;
+    u.rate = (typeof state.spkRate==="number" ? state.spkRate : 1.0); u.pitch = 1.0;
     u.onend = function(){ if(my===spk.token) step(); };
     u.onerror = function(){ if(my===spk.token) step(); };
     try{ window.speechSynthesis.speak(u); }catch(_){ spkStop(); }
@@ -18157,7 +18159,7 @@ window.openSpkSettings=function(){
 };
 window.closeSpkSettings=function(){ var s=document.getElementById("spk-sheet"); if(s){s.style.display="none"; s.innerHTML="";} if(typeof spkStop==="function") spkStop(); };
 window.spkPickVoice=function(name){ state.spkVoice=name||""; saveState(); renderSpkSheet(); };
-window.spkSetRate=function(v){ state.spkRate=Number(v)||0.94; saveState(); var lbl=document.getElementById("spk-rate-lbl"); if(lbl) lbl.textContent=(state.spkRate).toFixed(2)+"×"; };
+window.spkSetRate=function(v){ state.spkRate=Number(v)||1.0; saveState(); var lbl=document.getElementById("spk-rate-lbl"); if(lbl) lbl.textContent=(state.spkRate).toFixed(2)+"×"; };
 window.spkPreview=function(){ spkToggle("平安！这是朗读的试听。祂必兴旺，我必衰微。愿神祝福你今天的晨读。","preview"); };
 window.spkSetEngine=function(e){ state.ttsEngine=(e==="native")?"native":"yun"; saveState(); if(typeof spkStop==="function") spkStop(); renderSpkSheet(); };
 /* 选择朗读声音：azure 三种（云帆/晓辰/云哲）或装置内建 */
@@ -18171,7 +18173,7 @@ window.spkSetVoice=function(choice){
 function renderSpkSheet(){
   var host=document.getElementById("spk-sheet"); if(!host) return;
   var vs=spkListVoices();
-  var rate=(typeof state.spkRate==="number"?state.spkRate:0.94);
+  var rate=(typeof state.spkRate==="number"?state.spkRate:1.0);
   var rows="";
   if(!vs.length){
     rows='<div class="spk-empty">这台装置目前没有可用的中文语音。<br>iPhone 可到「设定 → 辅助使用 → 朗读内容 → 声音 → 中文」下载语音后再回来选。</div>';
@@ -18239,7 +18241,7 @@ function xzLessonFullText(l, spk){
   }
   // 主题经文
   if(l.verse){
-    if(spk) P.push("我们先来读今天的主题经文。"+clean(l.verse));   // 只读经文本身，出处（附注）不读出
+    if(spk) P.push("我们先来读今天的主题经文，"+clean(l.verse_ref||"")+"。"+clean(l.verse));   // 主题经文：先口语化说明出处，再读经文
     else    P.push("〔主题经文〕"+clean(l.verse)+"　"+clean(l.verse_ref||""));
   }
   if(l.bigidea) P.push(lab("核心观念","今天这一课的核心，是这样的。")+clean(l.bigidea));
