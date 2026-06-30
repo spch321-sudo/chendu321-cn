@@ -16425,7 +16425,7 @@ function inline(text){
 function nl(s){return esc(s).replace(/\n/g,"<br>");}
 
 /* ============ STATE ============ */
-let state={view:"home",lesson:null,tab:"read",deep:{},checked:{},openUnit:null,read:{},last:null,font:0,streak:0,lastDate:null,best:0,notes:{},marks:{},reviewN:null,reviewUnit:null,s321:{},strategyId:null,xzPos:null,s920:[],s920Help:false,s920cf:{event:"",done:[]},s235:{comp:[],fam:[],team:[]},sys:[],tmk:{},tnote:{},spkResume:{},contPos:null,noteOpen:{},ttsVoice:"xiaochen"};
+let state={view:"home",lesson:null,tab:"read",deep:{},checked:{},openUnit:null,read:{},last:null,font:0,streak:0,lastDate:null,best:0,notes:{},marks:{},reviewN:null,reviewUnit:null,s321:{},strategyId:null,xzPos:null,s920:[],s920Help:false,s920cf:{event:"",done:[]},s235:{comp:[],fam:[],team:[]},sys:[],tmk:{},tnote:{},spkResume:{},contPos:null,noteOpen:{},ttsVoice:"xiaochen",voiceMig:0};
 
 /* ---- 持久化（LINE/浏览器皆可；沙盒被挡时自动略过，不影响使用）---- */
 var LS_KEY="chendu321_v1";
@@ -16458,6 +16458,9 @@ function loadState(){
     if(typeof d.spkRate==="number") state.spkRate=d.spkRate;
     if(typeof d.ttsEngine==="string") state.ttsEngine=d.ttsEngine;
     if(typeof d.ttsVoice==="string") state.ttsVoice=d.ttsVoice;
+    // 一次性：曾停在「装置内建」者，开启更新版自动回到预设晓辰（只跑一次，之后仍可自由切换）
+    if(!d.voiceMig){ if(state.ttsEngine==="native"){ state.ttsEngine="yun"; state.ttsVoice="xiaochen"; } state.voiceMig=1; }
+    else state.voiceMig=d.voiceMig;
   }catch(e){}
 }
 function saveState(){
@@ -16465,7 +16468,7 @@ function saveState(){
     localStorage.setItem(LS_KEY,JSON.stringify({
       checked:state.checked, read:state.read, last:state.last,
       openUnit:state.openUnit, contPos:state.contPos, font:state.font,
-      streak:state.streak, lastDate:state.lastDate, best:state.best, notes:state.notes, marks:state.marks, s321:state.s321, xzPos:state.xzPos, s920:state.s920, s920Help:state.s920Help, s920cf:state.s920cf, s235:state.s235, sys:state.sys, tmk:state.tmk, tnote:state.tnote, spkResume:state.spkResume, spkVoice:state.spkVoice, spkRate:state.spkRate, ttsEngine:state.ttsEngine, ttsVoice:state.ttsVoice
+      streak:state.streak, lastDate:state.lastDate, best:state.best, notes:state.notes, marks:state.marks, s321:state.s321, xzPos:state.xzPos, s920:state.s920, s920Help:state.s920Help, s920cf:state.s920cf, s235:state.s235, sys:state.sys, tmk:state.tmk, tnote:state.tnote, spkResume:state.spkResume, spkVoice:state.spkVoice, spkRate:state.spkRate, ttsEngine:state.ttsEngine, ttsVoice:state.ttsVoice, voiceMig:state.voiceMig
     }));
   }catch(e){}
 }
@@ -17659,8 +17662,21 @@ function spkBibleRefs(s){
   });
   return s;
 }
+/* 朗读用：移除「纯经文出处」括号附注（如（启12:11）（参约3:16）（罗8:28、弗1:11）），
+   但保留解释性括号（如（在神面前承认自己的骄傲）（脾气、言语、欲望））。 */
+var SPK_REFTOK_RE = new RegExp("("+SPK_BIBLE_ALT+")\\s*\\d{1,3}\\s*(?:[:：]\\s*\\d{1,3}(?:\\s*[-–~、，,]\\s*\\d{1,3})*|[章篇])\\s*[节節]?","g");
+function spkStripRefParens(s){
+  s=String(s||"");
+  return s.replace(/\s?[（(]([^（）()]*)[）)]/g, function(m, inner){
+    var t=String(inner);
+    t=t.replace(SPK_REFTOK_RE,"");                          // 去掉所有经文引用 token
+    t=t.replace(/[、，,;；和與与及节節章篇上下\s·／/参參見见另比較比较照同cf：:]/gi,""); // 去连接词与引导词
+    return t.length ? m : "";                               // 仍有内容→保留；只剩出处→整组删除
+  });
+}
 function spkSanitize(s){
   s = String(s||"");
+  s = spkStripRefParens(s);  // 先移除「纯经文出处」括号附注（不读出处）
   s = spkBibleRefs(s);  // 经文缩写还原、章节口语化（朗读用）
   s = spkJargon(s);     // 常用代号数字逐字读（321→三二一）
   s = s.split("：").join("，");  // 朗读：全形冒号→逗号，让「基础一：…」等冒号处停顿
@@ -18214,7 +18230,7 @@ function xzLessonFullText(l, spk){
   }
   // 主题经文
   if(l.verse){
-    if(spk) P.push("我们先来读今天的主题经文。"+clean(l.verse)+"　这段经文出自"+clean(l.verse_ref||"")+"。");
+    if(spk) P.push("我们先来读今天的主题经文。"+clean(l.verse));   // 只读经文本身，出处（附注）不读出
     else    P.push("〔主题经文〕"+clean(l.verse)+"　"+clean(l.verse_ref||""));
   }
   if(l.bigidea) P.push(lab("核心观念","今天这一课的核心，是这样的。")+clean(l.bigidea));
