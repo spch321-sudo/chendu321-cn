@@ -17663,7 +17663,7 @@ function spkSanitize(s){
   s = spkBibleRefs(s);  // 经文缩写还原、章节口语化（朗读用）
   s = spkJargon(s);     // 常用代号数字逐字读（321→三二一）
   s = s.split("：").join("，");  // 朗读：全形冒号→逗号，让「基础一：…」等冒号处停顿
-  // ===== 朗读多音字正音表：画面文字不变，仅朗读时用「同音字」矫正云希常读错的字 =====
+  // ===== 朗读多音字正音表：画面文字不变，仅朗读时用「同音字」矫正云帆常读错的字 =====
   // (A) 无误伤风险者，直接替换
   var SPK_POLY = [
     ["得享",   "德享"],     // 得 ㄉㄜˊ（德）　非轻声ㄉㄜ˙
@@ -17692,7 +17692,7 @@ function spkSanitize(s){
     ["复兴","复星"],["兴起","星起"],["兴旺","星旺"],["兴盛","星盛"],  // 兴 ㄒㄧㄥ（星）复兴兴起　非高兴ㄒㄧㄥˋ
     ["长老","掌老"],                                                  // 长 ㄓㄤˇ（掌）长老　非长久ㄔㄤˊ
     ["今天","今添"]                                                   // 天 ㄊㄧㄢ（添）今天　修正引擎误加四声ㄊㄧㄢˋ
-    // 注：原「血→写」一条已移除——大陆普通话「宝血/流血」读 xuè（文读）为标准，云希预设即正确
+    // 注：原「血→写」一条已移除——大陆普通话「宝血/流血」读 xuè（文读）为标准，云帆预设即正确
   ];
   for (var _p = 0; _p < SPK_POLY.length; _p++) { s = s.split(SPK_POLY[_p][0]).join(SPK_POLY[_p][1]); }
   // (B) 需前字守卫者：避免「尊重生命」「人数算」等被误改（含小智 AI 回覆）
@@ -17791,7 +17791,7 @@ function spkResumeCurrent(){
     /* 内建语音：从暂停的那一段重念（iOS 的 speechSynthesis.resume() 不稳定） */
     nativeRunFrom(Math.max(0, spk.idx-1));
   }else{
-    /* 云希：从「暂停的那一段」重新念起，最可靠——iOS 背景后 audio 元素常被回收，
+    /* 云帆：从「暂停的那一段」重新念起，最可靠——iOS 背景后 audio 元素常被回收，
        单纯 play() 可能失效或从头；改以重念当前段（spk.idx-1）确保「从刚才暂停处」接续。 */
     yunRunFrom(Math.max(0, spk.idx-1));
   }
@@ -17832,11 +17832,11 @@ window.spkStopReset=function(){
   if(typeof updateStopBar==="function") updateStopBar();
   if(typeof uiToast==="function") uiToast("已停止，下次从头开始");
 };
-/* ============ 🎙️ 云希 · Azure 真人语音引擎（zh-CN-YunxiNeural · 大陆普通话男声） ============ */
+/* ============ 🎙️ 云帆 · Azure 真人语音引擎（zh-CN-YunxiNeural · 大陆普通话男声） ============ */
 /* 透过 Cloudflare Worker 代理呼叫 Azure 文字转语音，金钥由伺服器端保管、不外泄。 */
 /* 若 Worker 未设定或连不上，会自动退回装置内建语音，app 永远不会因此中断。          */
 var TTS_ENDPOINT = "https://azure-tts.spch321.workers.dev"; /* ← 改成你自己的 Worker 网址 */
-var TTS_VOICE    = "zh-CN-Yunxi:DragonHDLatestNeural";      /* 云希 · HD 高清（理解语意、自动带情感）；想换回标准免费版改为 "zh-CN-YunxiNeural" */
+var TTS_VOICE    = "zh-CN-Yunfan:DragonHDLatestNeural";      /* 云帆 · HD 高清男声；中文 HD 仅 云帆(男)/晓辰(女)。想换回标准免费版改为 "zh-CN-YunxiNeural" */
 var TTS_SIL_SENTENCE = 140;   /* 句号/问号/惊叹号停顿(ms)，跟逗号差不多短 */
 var TTS_SIL_COMMA    = 140;   /* 逗号停顿(ms) */
 var TTS_SIL_ENUM     = 260;   /* 顿号「、」停顿(ms)，标题「一、二、三」听得清楚 */
@@ -17847,7 +17847,7 @@ var yun = {
 };
 window.yun = yun;
 function yunEnabled(){
-  /* 预设：只要设定了 Worker 网址、且使用者没有强制切回内建，就用云希 */
+  /* 预设：只要设定了 Worker 网址、且使用者没有强制切回内建，就用云帆 */
   return yun.ready && state.ttsEngine!=="native";
 }
 function yunGetAudio(){
@@ -17873,7 +17873,7 @@ function yunRateAttr(){
   var pct=Math.round((r-1)*100);            /* 1.0 → +0%，0.8 → -20% */
   return (pct>=0?"+":"")+pct+"%";
 }
-/* 云希用较长的句段（减少请求次数与停顿，听起来更顺） */
+/* 云帆用较长的句段（减少请求次数与停顿，听起来更顺） */
 function yunChunks(text){
   var t=String(text||"").replace(/\s+/g," ").trim(); if(!t) return [];
   var enders="。！？；\n"; var out=[]; var buf="";
@@ -17882,7 +17882,7 @@ function yunChunks(text){
   var fin=[]; out.forEach(function(s){ while(s.length>320){ fin.push(s.slice(0,320)); s=s.slice(320); } if(s) fin.push(s); });
   return fin.length?fin:[t];
 }
-/* ====== 云希语音永久快取（IndexedDB · 与录音库完全隔离） ====== */
+/* ====== 云帆语音永久快取（IndexedDB · 与录音库完全隔离） ====== */
 /* 每段语音一生只向 Worker 抓一次，之后秒播、离线可听，替 Worker 省成本。 */
 /* 任何 IndexedDB 失败都自动走回网路抓取，绝不影响既有朗读与内建语音退路。 */
 var TTS_DB="chendu321_tts";
@@ -17979,8 +17979,8 @@ function yunRunFrom(startIdx){
     }).catch(function(){
       if(my!==spk.token) return;
       if(first){
-        /* 第一段就失败：云希不可用 → 整段改用装置内建语音，app 不中断 */
-        if(typeof uiToast==="function") uiToast("云希语音暂时连不上，改用装置内建声音");
+        /* 第一段就失败：云帆不可用 → 整段改用装置内建语音，app 不中断 */
+        if(typeof uiToast==="function") uiToast("云帆语音暂时连不上，改用装置内建声音");
         spk.active=false;
         spkToggleNative(spk.curText||"", spk.curId);
       }else{
@@ -17993,7 +17993,7 @@ function yunRunFrom(startIdx){
 window.yunToggle=yunToggle;
 window.yunStop=yunStop;
 
-/* ============ 朗读派发器：优先云希，否则内建（两者共用同一颗按钮） ============ */
+/* ============ 朗读派发器：优先云帆，否则内建（两者共用同一颗按钮） ============ */
 function spkToggle(text, id, startIdx){
   if(yunEnabled()) return yunToggle(text, id, startIdx);
   return spkToggleNative(text, id, startIdx);
@@ -18142,15 +18142,15 @@ function renderSpkSheet(){
       +'<div class="spk-h"><div class="spk-h-t">🔊 朗读声音</div><button class="spk-x" onclick="closeSpkSettings()">✕</button></div>'
       +'<div class="spk-sub">选一个你喜欢的声音，点下面「试听」听听看</div>'
       +(yun.ready?('<div class="spk-eng">'
-        +'<button class="spk-eng-b '+(yunEnabled()?"on":"")+'" onclick="spkSetEngine(\'yun\')">🎙️ 云希真人语音</button>'
+        +'<button class="spk-eng-b '+(yunEnabled()?"on":"")+'" onclick="spkSetEngine(\'yun\')">🎙️ 云帆真人语音</button>'
         +'<button class="spk-eng-b '+(!yunEnabled()?"on":"")+'" onclick="spkSetEngine(\'native\')">📱 装置内建</button>'
       +'</div>'):"")
-      +(yunEnabled()?'<div class="spk-sub" style="margin-top:6px">目前使用云希（大陆普通话男声）。下方语音清单仅在云希连不上时作为备援。</div>':"")
+      +(yunEnabled()?'<div class="spk-sub" style="margin-top:6px">目前使用云帆（大陆普通话男声）。下方语音清单仅在云帆连不上时作为备援。</div>':"")
       +'<div class="spk-list">'+rows+'</div>'
       +'<div class="spk-rate"><span>语速</span><input type="range" min="0.6" max="1.3" step="0.02" value="'+rate+'" oninput="spkSetRate(this.value)"><span id="spk-rate-lbl">'+rate.toFixed(2)+'×</span></div>'
-      +((yunEnabled()&&state.lesson)?('<div class="spk-dl"><button class="spk-dl-btn" id="spk-preload-btn" onclick="spkPreloadLesson()">⬇ 预先下载这一课的语音</button><div class="spk-dl-sub">下载后，这一课的云希语音可离线聆听，之后也不再耗用网路</div></div>'):"")
+      +((yunEnabled()&&state.lesson)?('<div class="spk-dl"><button class="spk-dl-btn" id="spk-preload-btn" onclick="spkPreloadLesson()">⬇ 预先下载这一课的语音</button><div class="spk-dl-sub">下载后，这一课的云帆语音可离线聆听，之后也不再耗用网路</div></div>'):"")
       +'<div class="spk-acts"><button class="spk-try" onclick="spkPreview()">▶︎ 试听</button><button class="spk-done" onclick="closeSpkSettings()">完成</button></div>'
-      +(yun.ready?'':'<div class="spk-tip">想要更自然的真人男声「云希」？请依「云希语音设定指南」连接 Azure 语音服务。</div>')
+      +(yun.ready?'':'<div class="spk-tip">想要更自然的真人男声「云帆」？请依「云帆语音设定指南」连接 Azure 语音服务。</div>')
     +'</div></div>';
   host.style.display="block";
 }
