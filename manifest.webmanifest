@@ -1,9 +1,9 @@
 {
-  "name": "晨读321 · 国度321空中团契",
-  "short_name": "晨读321",
+  "name": "321理念 · 国度321空中团契",
+  "short_name": "321理念",
   "lang": "zh-Hans",
   "dir": "ltr",
-  "description": "国度321空中团契 · 晨读321：每天在线学习圣经真理与321理念，活出基督的生命。",
+  "description": "国度321空中团契 · 321理念：每天在线学习圣经真理与321理念，活出基督的生命。",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
