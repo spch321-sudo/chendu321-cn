@@ -9,7 +9,7 @@
    　　只清「自己前缀」（chendu321-zhs-）的快取，绝不误删另一个 App 的离线内容。
    ============================================================ */
 var PREFIX  = "chendu321-zhs-";
-var VERSION = "v38";
+var VERSION = "v39";
 var CACHE   = PREFIX + VERSION;
 
 var SHELL = [
