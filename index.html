@@ -283,6 +283,18 @@
   .bk-hint{color:var(--inkFaint);font-size:12.5px;text-align:center;background:var(--mintSoft);border-radius:10px;padding:8px 12px;margin:12px 16px 2px}
   .bk-rtop-r{display:flex;align-items:center;gap:9px}
   .bfn{color:var(--gold);font-weight:800;cursor:pointer;padding:0 2px;font-size:.7em;vertical-align:super;line-height:0}
+  #bfn-sheet{position:fixed;inset:0;z-index:130;display:none}
+  #bfn-sheet.show{display:block}
+  .bfn-backdrop{position:absolute;inset:0;background:rgba(28,40,36,.45)}
+  .bfn-card{position:absolute;left:0;right:0;bottom:0;background:var(--card);border-radius:20px 20px 0 0;padding:18px 20px calc(22px + env(safe-area-inset-bottom));max-width:680px;margin:0 auto;box-shadow:0 -6px 24px rgba(0,0,0,.18);animation:bfnUp .22s ease}
+  @keyframes bfnUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+  .bfn-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  .bfn-n{color:var(--gold);font-weight:800;font-size:15px;letter-spacing:1px}
+  .bfn-x{background:none;border:none;font-size:18px;color:var(--inkFaint);cursor:pointer}
+  .bfn-tx{color:var(--ink);font-size:16px;line-height:1.9}
+  .bfn-src{margin-top:14px;padding-top:10px;border-top:1px solid var(--line);color:var(--inkFaint);font-size:11.5px;text-align:center;line-height:1.6}
+  body.fs-lg .bfn-tx{font-size:18px}
+  body.fs-xl .bfn-tx{font-size:21px}
   .bk-ref{color:var(--mintDeep);font-weight:700;text-decoration:underline;text-decoration-color:var(--mint);text-underline-offset:2px}
   .bk-p{font-size:18.5px}
   .bk-p{font-size:21px}
@@ -17314,7 +17326,7 @@ window.spkPreloadBook = function(){
   function pump(){
     while(running < CONC && started < chunks.length){
       var piece = chunks[started++]; running++;
-      yunFetch(piece).then(function(){ ok++; }, function(){ fail++; }).then(function(){
+      yunFetchRetry(piece, 4).then(function(){ ok++; }, function(){ fail++; }).then(function(){
         running--; label("下载中\u2026 " + (ok + fail) + "/" + total); pump();
       });
     }
@@ -18608,6 +18620,14 @@ function yunFetch(piece){
     });
   });
 }
+function yunFetchRetry(piece, tries){
+  tries = (typeof tries==="number") ? tries : 4;
+  return yunFetch(piece).catch(function(e){
+    if(tries>0){ return new Promise(function(r){ setTimeout(r, 450); }).then(function(){ return yunFetchRetry(piece, tries-1); }); }
+    throw e;
+  });
+}
+
 function yunStop(){
   spk.token++; spk.active=false; spk.paused=false; spk.mode=""; spk.queue=[]; spk.idx=0; spk.curId="";
   spk.joined=false; try{ if(spk.joinedURL){ URL.revokeObjectURL(spk.joinedURL); spk.joinedURL=null; } }catch(_){}
@@ -18637,7 +18657,7 @@ function yunPlayJoined(text, id, startIdx){
   function pump(){
     while(running<CONC && started<slice.length){
       (function(ix){ running++;
-        yunFetch(slice[ix]).then(toBlob).then(function(b){ results[ix]=b; }, function(){}).then(function(){
+        yunFetchRetry(slice[ix], 4).then(toBlob).then(function(b){ results[ix]=b; }, function(){}).then(function(){
           running--; done++;
           if(my!==spk.token) return;
           if(done>=slice.length) finish(); else pump();
@@ -18699,7 +18719,7 @@ function yunRunFrom(startIdx){
     var first=(spk.idx===0);
     var piece=spk.queue[spk.idx++];
     persistSpkResume();   /* 每段即时记录进度：锁屏/切换/退出等任何中断都能从此续播 */
-    yunFetch(piece).then(function(url){
+    yunFetchRetry(piece, 4).then(function(url){
       if(my!==spk.token) return;
       if(spk.idx<spk.queue.length){ yunFetch(spk.queue[spk.idx]).catch(function(){}); } /* 预抓下一段，换段更顺 */
       var a=yunGetAudio(); a.onended=null; a.onerror=null;
@@ -18822,7 +18842,7 @@ window.spkPreloadLesson = function(){
   function pump(){
     while(running < CONC && started < chunks.length){
       var piece = chunks[started++]; running++;
-      yunFetch(piece).then(function(){ ok++; }, function(){ fail++; }).then(function(){
+      yunFetchRetry(piece, 4).then(function(){ ok++; }, function(){ fail++; }).then(function(){
         running--; label("下载中… " + (ok + fail) + "/" + total); pump();
       });
     }
