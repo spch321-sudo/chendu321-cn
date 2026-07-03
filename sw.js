@@ -3,10 +3,14 @@
    - 离线可用：预先快取 App 外壳
    - 内容更新：导览请求采「网路优先」，确保改版即时生效；离线时回退快取
    - 有新版时：通知页面显示「✦ 已有新版本」更新提示
-   改版上线时，请把下面的版本号 +1（例如 v1 → v2），即可强制更新。
+   改版上线时，请把下面 CACHE 的版本号 +1（例如 v36 → v37），即可强制更新。
+   ── 注意：本团契三个 App（简体／繁体／英文）同在一个网域下，
+   　　浏览器的 Cache Storage 是整个网域共用。因此清理旧版时，
+   　　只清「自己前缀」（chendu321-zhs-）的快取，绝不误删另一个 App 的离线内容。
    ============================================================ */
-var VERSION = "chendu321-zhs-v35";
-var CACHE   = VERSION;
+var PREFIX  = "chendu321-zhs-";
+var VERSION = "v36";
+var CACHE   = PREFIX + VERSION;
 
 var SHELL = [
   "./",
@@ -32,18 +36,20 @@ self.addEventListener("install", function (e) {
   );
 });
 
-/* 启用：清掉旧版快取；若确实是「更新」（先前有旧版），通知页面显示更新提示 */
+/* 启用：只清掉「本 App」的旧版快取；若确实是更新（先前有旧版），通知页面显示更新提示 */
 self.addEventListener("activate", function (e) {
   e.waitUntil(
     caches.keys().then(function (keys) {
-      var hadOld = keys.some(function (k) { return k !== CACHE; });
+      var hadOld = keys.some(function (k) {
+        return k !== CACHE && k.indexOf(PREFIX) === 0;
+      });
       return Promise.all(keys.map(function (k) {
-        if (k !== CACHE) return caches.delete(k);
+        if (k !== CACHE && k.indexOf(PREFIX) === 0) return caches.delete(k);
       })).then(function () {
         return self.clients.claim();
       }).then(function () {
         if (hadOld) {
-          return self.clients.matchAll().then(function (cl) {
+          return self.clients.matchAll({ type: "window" }).then(function (cl) {
             cl.forEach(function (c) { c.postMessage({ type: "update-available" }); });
           });
         }
@@ -52,7 +58,7 @@ self.addEventListener("activate", function (e) {
   );
 });
 
-/* 拦截：仅处理同源 GET；POST（语音/AI 代理）与跨域请求一律放行不快取 */
+/* 拦截：仅处理同源 GET；POST（语音／AI 代理）与跨域请求一律放行不快取 */
 self.addEventListener("fetch", function (e) {
   var req = e.request;
   if (req.method !== "GET") return;
