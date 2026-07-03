@@ -224,6 +224,17 @@
   .fontbtn{border:1.5px solid var(--line);background:var(--card);color:var(--inkSoft);border-radius:18px;padding:6px 15px;font-size:14px;cursor:pointer;}
   .fontbtn.active{background:var(--mint);border-color:var(--mint);color:#fff;font-weight:700;}
   .rd-font{background:var(--mintWash);border:none;border-radius:10px;width:40px;height:40px;font-size:15px;font-weight:700;color:var(--mintDark);cursor:pointer;flex-shrink:0;}
+  body.fs-lg .bk-p{font-size:18.5px}
+  body.fs-xl .bk-p{font-size:21px}
+  body.fs-lg .bk-h{font-size:20px}
+  body.fs-xl .bk-h{font-size:22px}
+  body.fs-lg .bk-v,body.fs-lg .bk-verse{font-size:17px}
+  body.fs-xl .bk-v,body.fs-xl .bk-verse{font-size:19px}
+  body.fs-lg .bk-title{font-size:25px}
+  body.fs-xl .bk-title{font-size:27px}
+  .bk-dl{margin:14px 20px 4px;}
+  .bk-dl-btn{width:100%;border:1.5px solid var(--gold);background:var(--goldWash);color:#8a6d1f;border-radius:14px;padding:12px;font-size:14.5px;font-weight:700;font-family:inherit;cursor:pointer;}
+  .bk-dl-sub{font-size:12px;color:var(--inkFaint);line-height:1.6;margin:7px 2px 0;text-align:center;}
   .bk-head{margin-bottom:12px;}
   .bk-ic{font-size:23px;line-height:1.15;}
   .bk-t{font-weight:700;color:var(--mintDeep);font-size:15.5px;}
@@ -757,7 +768,7 @@
   .s920-note:focus{outline:none;border-color:var(--mint);}
   .home-tools{margin-top:26px;padding-top:18px;border-top:1px solid var(--line);}
   .backup-card{margin-top:14px;padding:15px 15px 13px;background:var(--mintWash);border:1px solid var(--line);border-radius:16px;}
-  .bk-head{display:flex;align-items:flex-start;gap:11px;margin-bottom:12px;}
+  
   .bk-ic{font-size:23px;line-height:1.15;}
   .bk-t{font-weight:700;color:var(--mintDeep);font-size:15.5px;}
   .bk-d{font-size:12.5px;color:var(--inkSoft,#5a6b64);margin-top:3px;line-height:1.5;}
@@ -17247,7 +17258,7 @@ function bookUnitHTML(){
   return '<div class="bk-reader">'
     +'<div class="bk-rtop"><button class="bk-back" onclick="openBook()">‹ 目录</button>'
       +'<div class="bk-rtop-r"><button class="rd-font" onclick="cycleFont()" aria-label="调整字级大小">A⁺</button><button class="bk-speak" id="bk-speak-btn" data-spk="book'+state.bookUnit+'" data-spk-label="朗读" onclick="bookSpeak()"><span class="spk-ic">🔊</span> <span class="spk-tx">朗读</span></button></div></div>'
-    +'<div class="bk-unit-eyebrow2">'+esc(U.eyebrow||"")+' · '+esc(u.num)+'</div>'
+    +((typeof yunEnabled==="function"&&yunEnabled())?'<div class="bk-dl"><button class="bk-dl-btn" id="bk-preload-btn" onclick="spkPreloadBook()">⬇ 预先下载本单元语音</button><div class="bk-dl-sub">下载后，本单元可离线聆听，之后也不再耗用网路</div></div>':'')+'<div class="bk-unit-eyebrow2">'+esc(U.eyebrow||"")+' · '+esc(u.num)+'</div>'
     +'<h2 class="bk-title">'+esc(U.title||u.title)+'</h2>'
     +verseHTML
     +'<div class="bk-hint">💡 点一下句子可画线；再点画线的句子可写笔记</div>'
@@ -17275,6 +17286,36 @@ window.bookFnClose=function(){ var s=document.getElementById("bfn-sheet"); if(s)
 window.openBook=function(){ if(typeof recCleanup==="function")recCleanup(); if(typeof persistSpkResume==="function")persistSpkResume(); if(typeof spkStop==="function")spkStop(); state.view="book"; render(); window.scrollTo(0,0); };
 
 window.openBookUnit=function(n){ if(typeof recCleanup==="function")recCleanup(); if(typeof spkStop==="function")spkStop(); state.bookUnit=n; state.view="bookunit"; render(); window.scrollTo(0,0); };
+
+window.spkPreloadBook = function(){
+  spk.voiceOverride = null;
+  var u = (BOOK||[])[state.bookUnit];
+  if(!u){ if(typeof uiToast==="function") uiToast("请先打开一个单元再下载"); return; }
+  if(!yunEnabled()){ if(typeof uiToast==="function") uiToast("目前使用装置内建语音，本来就能离线，无需下载"); return; }
+  if(window.__spkPreloadBusy) return;
+  var chunks = yunChunks(spkSanitize(bookSpeakText(u)));
+  if(!chunks.length){ if(typeof uiToast==="function") uiToast("本单元没有可下载的语音"); return; }
+  window.__spkPreloadBusy = true;
+  var total = chunks.length, ok = 0, fail = 0, started = 0, running = 0, CONC = 3;
+  function btn(){ return document.getElementById("bk-preload-btn"); }
+  function label(t){ var b = btn(); if(b) b.textContent = t; }
+  function disable(d){ var b = btn(); if(b) b.disabled = !!d; }
+  disable(true); label("下载中\u2026 0/" + total);
+  function pump(){
+    while(running < CONC && started < chunks.length){
+      var piece = chunks[started++]; running++;
+      yunFetch(piece).then(function(){ ok++; }, function(){ fail++; }).then(function(){
+        running--; label("下载中\u2026 " + (ok + fail) + "/" + total); pump();
+      });
+    }
+    if(running === 0 && started >= chunks.length){
+      window.__spkPreloadBusy = false; disable(false);
+      if(fail){ label("已下载 " + ok + "/" + total + " (tap again later to finish)"); if(typeof uiToast==="function") uiToast("Mostly downloaded \u2014 a few parts can be retried later"); }
+      else { label("\u2713 Whole chapter downloaded \u2014 plays offline"); if(typeof uiToast==="function") uiToast("Whole chapter downloaded \u2014 plays offline from now on"); }
+    }
+  }
+  pump();
+};
 
 function paneHTML(l){
   if(state.tab==="read"){
@@ -18411,7 +18452,7 @@ window.spkPauseCurrent=spkPauseCurrent;
 window.spkResumeCurrent=spkResumeCurrent;
 /* ====== 停止（回到开头）：朗读进行中浮出的小胶囊，整段归零、清除续听点 ====== */
 function updateStopBar(){
-  var show = spk.active && spk.curId==="lesson" && state.view==="reader";
+  var show = spk.active && ((spk.curId==="lesson" && state.view==="reader") || (String(spk.curId).indexOf("book")===0 && state.view==="bookunit"));
   var bar=document.getElementById("spk-stopbar");
   if(!bar){
     if(!show) return;
