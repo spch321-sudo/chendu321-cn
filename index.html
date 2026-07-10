@@ -18610,9 +18610,13 @@ function spkPos(a){
     ms.setPositionState({duration:a.duration, position:Math.min(a.currentTime,a.duration), playbackRate:a.playbackRate||1});
   }catch(_){}
 }
-/* 背景连续播放：先把「整课」的语音全部抓齐 → 位元组串接成单一 MP3 Blob → 一次播放。
-   播放中不需要 JS 换段，所以锁屏、切换 App、萤幕关掉都会像播一首歌一样完整播完。
-   每一小段抓过就永久存进 IndexedDB，第二次听是离线瞬开。 */
+/* 背景连续播放（快开 + 一首歌）：
+   1) 只等「第一小段」抓好 → 立刻开念，不必乾等整课下载完。
+   2) 同一时间，六路并行把整课抓齐 → 位元组串接成单一 MP3 Blob。
+   3) 全曲一就绪（通常在开念后几秒内、手机还在手上）→ 只换这一次音源，
+      并跳到目前播到的位置接续。之后整堂课就是一首完整的歌，
+      锁屏、关萤幕、切到别的 App 都不会中断、不会只播一段就停。
+   每一小段抓过就永久存进 IndexedDB，第二次听是离线瞬开，连那一次换源都省了。 */
 function yunPlayJoined(text, id, startIdx){
   var chunks=yunChunks(spkSanitize(text));
   if(!chunks.length){ yunStop(); return; }
@@ -18623,48 +18627,83 @@ function yunPlayJoined(text, id, startIdx){
   var my=++spk.token;
   if(typeof spkMediaSession==="function") spkMediaSession("play");
   if(typeof updateSpeakButtons==="function") updateSpeakButtons();
-  if(typeof uiToast==="function") uiToast("背景连续播放：正在把整课串成一首，请稍候…");
+  if(typeof uiToast==="function") uiToast("开始朗读，其余内容边听边下载…");
+  persistSpkResume();
 
-  var results=new Array(slice.length), done=0, started=0, running=0, CONC=6, lastPct=0;
-  function toBlob(url){ return fetch(url).then(function(r){ return r.blob(); }); }
-  function tick(){
-    done++;
-    var pct=Math.floor(done/slice.length*100);
-    if(pct>=lastPct+25 && pct<100){ lastPct=pct; if(typeof uiToast==="function") uiToast("整段语音准备中… "+pct+"%"); }
-  }
-  function pump(){
-    while(running<CONC && started<slice.length){
-      (function(ix){ running++;
-        yunFetch(slice[ix]).then(toBlob).then(function(b){ results[ix]=b; }, function(){}).then(function(){
-          running--; tick();
-          if(my!==spk.token) return;
-          if(done>=slice.length) finish(); else pump();
-        });
-      })(started++);
-    }
-  }
-  function finish(){
-    if(my!==spk.token) return;
-    var parts=results.filter(Boolean);
-    if(!parts.length){ spk.active=false; spkToggleNative(spk.curText||"", spk.curId); return; }
-    try{ if(spk.joinedURL){ URL.revokeObjectURL(spk.joinedURL); spk.joinedURL=null; } }catch(_){}
-    var url=URL.createObjectURL(new Blob(parts, {type:"audio/mpeg"}));
-    spk.joinedURL=url;
-    persistSpkResume();
-    var a=yunGetAudio(); a.onended=null; a.onerror=null; a.ontimeupdate=null; a.onloadedmetadata=null;
-    a.src=url;
-    a.onended=function(){ if(my===spk.token){ maybeClearResumeOnComplete(); yunStop(); } };
-    a.onerror=function(){ if(my===spk.token){ yunStop(); } };
-    a.ontimeupdate=function(){ if(my===spk.token) spkPos(a); };
-    a.onloadedmetadata=function(){ if(my===spk.token) spkPos(a); };
-    try{ var ms=navigator.mediaSession; if(ms){
+  var a=yunGetAudio();
+  var phase="head", headEnded=false, headDur=0, fullURL=null, swapped=false;
+
+  function toBlob(u){ return fetch(u).then(function(r){ return r.blob(); }); }
+  function keepURL(u){ try{ if(spk.joinedURL && spk.joinedURL!==u) URL.revokeObjectURL(spk.joinedURL); }catch(_){} spk.joinedURL=u; }
+  function attachSeek(){
+    try{ var ms=navigator.mediaSession; if(!ms) return;
       ms.setActionHandler("seekto", function(e){ try{ if(e.seekTime!=null){ a.currentTime=e.seekTime; spkPos(a);} }catch(_){}});
       ms.setActionHandler("seekforward", function(){ try{ a.currentTime=Math.min(a.duration||0, a.currentTime+15); spkPos(a);}catch(_){}});
       ms.setActionHandler("seekbackward", function(){ try{ a.currentTime=Math.max(0, a.currentTime-15); spkPos(a);}catch(_){}});
-    }}catch(_){}
+    }catch(_){}
+  }
+  function wire(){
+    a.onerror=function(){ if(my===spk.token) yunStop(); };
+    a.ontimeupdate=function(){ if(my===spk.token) spkPos(a); };
+    a.onloadedmetadata=function(){ if(my===spk.token) spkPos(a); };
+    a.onended=function(){
+      if(my!==spk.token) return;
+      if(phase==="full"){ maybeClearResumeOnComplete(); yunStop(); return; }
+      headEnded=true;
+      if(isFinite(a.duration)) headDur=a.duration;
+      if(fullURL) swapToFull();   /* 第一小段念完、全曲剛好就緒 → 無縫接上 */
+    };
+  }
+  function swapToFull(){
+    if(my!==spk.token || swapped || !fullURL) return;
+    swapped=true; phase="full";
+    var at = headEnded ? (headDur||0) : (a.currentTime||0);
+    a.src=fullURL; keepURL(fullURL);
+    a.onloadedmetadata=function(){
+      if(my!==spk.token) return;
+      try{ if(at>0 && isFinite(a.duration) && at<a.duration) a.currentTime=at; }catch(_){}
+      spkPos(a);
+    };
     var p=a.play(); if(p&&p.catch) p.catch(function(){ if(my===spk.token) yunStop(); });
   }
-  pump();
+
+  /* ① 第一小段：抓到就開念 */
+  yunFetch(slice[0]).then(toBlob).then(function(b){
+    if(my!==spk.token) return;
+    var u=URL.createObjectURL(new Blob([b],{type:"audio/mpeg"}));
+    keepURL(u); wire(); attachSeek();
+    a.src=u;
+    if(slice.length===1){ swapped=true; phase="full"; }
+    var p=a.play(); if(p&&p.catch) p.catch(function(){ if(my===spk.token) yunStop(); });
+  }, function(){
+    if(my!==spk.token) return;
+    spk.active=false; spkToggleNative(spk.curText||"", spk.curId);
+  });
+
+  /* ② 同時六路並行抓齊整課 → 串成一首 → 只換這一次音源 */
+  if(slice.length>1){
+    var res=new Array(slice.length), done=0, next=0, running=0, CONC=6;
+    var pump=function(){
+      while(running<CONC && next<slice.length){
+        (function(i){ running++;
+          yunFetch(slice[i]).then(toBlob).then(function(b){ res[i]=b; }, function(){}).then(function(){
+            running--; done++;
+            if(my!==spk.token) return;
+            if(done>=slice.length){
+              var parts=res.filter(Boolean);
+              if(parts.length===slice.length){
+                try{ fullURL=URL.createObjectURL(new Blob(parts,{type:"audio/mpeg"})); }catch(_){ return; }
+                swapToFull();
+              }
+              return;
+            }
+            pump();
+          });
+        })(next++);
+      }
+    };
+    pump();
+  }
 }
 window.spkSetBg=function(on){ state.bgPlay=!!on; try{ saveState(); }catch(_){}
   if(typeof uiToast==="function") uiToast(on?"已开启背景连续播放 · 锁屏也能一路听完":"已关闭，恢复逐句播放");
